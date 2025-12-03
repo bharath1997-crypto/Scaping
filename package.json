@@ -1,0 +1,41 @@
+{
+  "type": "module",
+  "scripts": {
+    "dev": "ts-node src/api/server.ts",
+    "start": "ts-node src/api/server.ts",
+    "scrape": "ts-node src/scripts/runScraper.ts",
+    "scrape:google": "ts-node src/scripts/runScraper.ts google",
+    "scrape:apple": "ts-node src/scripts/runScraper.ts apple",
+    "scrape:samsung": "ts-node src/scripts/runScraper.ts samsung",
+    "scrape:huawei": "ts-node src/scripts/runScraper.ts huawei",
+    "scrape:mi": "ts-node src/scripts/runScraper.ts mi",
+    "scrape:all": "ts-node src/scripts/runScraper.ts",
+    "scrape:continuous": "ts-node src/scripts/runContinuous.ts",
+    "test": "ts-node src/test.ts",
+    "workers": "ts-node src/scripts/startWorkers.ts",
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "studio": "prisma studio",
+    "api": "ts-node src/api/server.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "app-store-scraper": "^0.18.0",
+    "axios": "^1.13.2",
+    "bullmq": "^5.0.0",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "google-play-scraper": "^10.1.2",
+    "ioredis": "^5.3.2",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

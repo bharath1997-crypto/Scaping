@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ScrapeMode {
+  REAL_API
+  HTML_BACKUP
+  DUMMY_FALLBACK
+}
+
+enum Store {
+  GOOGLE_PLAY
+  APPLE_APP_STORE
+  SAMSUNG_GALAXY_STORE
+  HUAWEI_APP_GALLERY
+  XIAOMI_MI_STORE
+  OTHER
+}
+
+enum DataQualityStatus {
+  RAW
+  CLEANED
+  FLAGGED
+}
+
+model App {
+  id            String   @id @default(cuid())
+  seqId         Int      @unique @default(autoincrement())
+  store         Store    @default(GOOGLE_PLAY)
+  appId         String
+
+  // Core identity
+  title         String
+  summary       String?
+  description   String?
+  url           String?
+  icon          String?
+  headerImage   String?
+  screenshots   Json?
+  video         String?
+
+  // Developer
+  developer           String?
+  developerId         String?
+  developerEmail      String?
+  developerWebsite    String?
+  developerAddress    String?
+
+  developerRefId String?
+  developerRef   Developer? @relation(fields: [developerRefId], references: [id], onDelete: SetNull)
+
+  // Category / tags
+  genre         String?
+  genreId       String?
+  tags          Json?
+
+  categoryRefId  String?
+  categoryRef    Category?  @relation(fields: [categoryRefId], references: [id], onDelete: SetNull)
+
+  // Ratings / reviews
+  score         Float?
+  ratings       BigInt?
+  reviewCount   BigInt?  // Total review count (renamed from 'reviews' to avoid conflict with relation)
+  histogram     Json?
+  star1Count    BigInt?
+  star2Count    BigInt?
+  star3Count    BigInt?
+  star4Count    BigInt?
+  star5Count    BigInt?
+
+  // Installs / pricing
+  installs      String?
+  minInstalls   BigInt?
+  maxInstalls   BigInt?
+  free          Boolean?
+  price         Float?
+  currency      String?
+  offersIAP     Boolean?
+  IAPRange      String?
+
+  // Version / device info
+  version             String?
+  realVersion         String?
+  updated             DateTime?
+  released            DateTime?
+  size                String?
+  androidVersion      String?
+  androidVersionText  String?
+  contentRating       String?
+  contentRatingDesc   String?
+
+  // Policy / misc
+  privacyPolicy       String?
+  adSupported         Boolean?
+  containsAds         Boolean?
+  recentChanges       String?
+
+  country       String?
+  firstSeenAt   DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+  isDelisted    Boolean  @default(false)
+  dataQuality   DataQualityStatus @default(RAW)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  dailyStats    AppDailyStat[]
+  scrapeEvents  RawScrapeEvent[]
+  rawSnapshots  RawAppSnapshot[]
+  reviews       Review[]
+  rankings      AppRanking[]
+
+  @@unique([store, appId])
+  @@index([title])
+  @@index([developer])
+}
+
+model AppDailyStat {
+  id         String   @id @default(cuid())
+  appIdRef   String
+  app        App      @relation(fields: [appIdRef], references: [id], onDelete: Cascade)
+
+  date       DateTime @default(now())
+  score      Float?
+  ratings    BigInt?
+  reviewCount BigInt?  // Total review count (renamed from 'reviews' to avoid conflict)
+  installs   String?
+  minInstalls BigInt?
+  maxInstalls BigInt?
+  histogram  Json?
+  star1Count BigInt?
+  star2Count BigInt?
+  star3Count BigInt?
+  star4Count BigInt?
+  star5Count BigInt?
+  rank       Int?
+  country    String   @default("")
+
+  createdAt  DateTime @default(now())
+
+  @@unique([appIdRef, date, country])
+  @@index([date])
+  @@index([country])
+}
+
+model RawScrapeEvent {
+  id         String     @id @default(cuid())
+  store      Store
+  mode       ScrapeMode
+  appId      String?
+  country    String?
+  payload    Json
+  scrapedAt  DateTime   @default(now())
+
+  app        App?       @relation(fields: [appIdRef], references: [id], onDelete: SetNull)
+  appIdRef   String?
+
+  @@index([scrapedAt])
+  @@index([store])
+  @@index([mode])
+}
+
+model Developer {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  apps      App[]
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  store     Store
+  name      String
+  slug      String
+  apps      App[]
+  createdAt DateTime @default(now())
+
+  @@unique([store, slug])
+  @@index([name])
+}
+
+model Review {
+  id            String   @id @default(cuid())
+  appIdRef      String
+  app           App      @relation(fields: [appIdRef], references: [id], onDelete: Cascade)
+
+  reviewId      String?  // External review ID from store (optional, may not always be available)
+  rating        Int      // 1-5 stars
+  reviewText    String?  // Full review text
+  reviewDate    DateTime?
+  reviewerName  String?  // Optional (privacy-aware)
+  helpfulCount  BigInt?  // Thumbs up / helpful votes
+  appVersion    String?  // Version when review was written
+  country       String?
+
+  // Developer response
+  developerReply      String?
+  developerReplyDate  DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([appIdRef])
+  @@index([reviewDate])
+  @@index([rating])
+  @@index([country])
+  @@index([reviewId])
+}
+
+enum ChartType {
+  TOP_FREE
+  TOP_PAID
+  TOP_GROSSING
+  TRENDING
+  NEW_APPS
+  CATEGORY_TOP_FREE
+  CATEGORY_TOP_PAID
+  CATEGORY_TOP_GROSSING
+}
+
+model AppRanking {
+  id         String    @id @default(cuid())
+  appIdRef   String
+  app        App       @relation(fields: [appIdRef], references: [id], onDelete: Cascade)
+
+  chartType  ChartType
+  position   Int       // Rank position (1 = #1)
+  category   String?   // Category slug if category-specific chart
+  country    String?   // Country code if regional chart
+  date       DateTime  @default(now())
+
+  createdAt  DateTime  @default(now())
+
+  @@index([appIdRef])
+  @@index([date])
+  @@index([chartType])
+  @@index([country])
+  @@index([category])
+  @@unique([appIdRef, chartType, category, country, date])
+}
+
+// ============================================================================
+// LAYER 1: UNIFIED RAW DATA STORE
+// ============================================================================
+// This is the SINGLE SOURCE OF TRUTH for all raw scraped data from ALL stores.
+// Each store (Google Play, Apple App Store, Samsung, Huawei, Xiaomi) stores
+// its complete raw payload in the 'payload' JSON field, while common fields
+// are extracted for quick querying and deduplication.
+//
+// Design Principles:
+// 1. Store-specific data goes in 'payload' JSON (never lose original data)
+// 2. Common fields extracted for indexing/querying
+// 3. Payload hash for deduplication (same app data = same hash)
+// 4. All stores use this same schema (unified raw data layer)
+// ============================================================================
+model RawAppSnapshot {
+  id           String    @id @default(cuid())
+  appIdRef     String?
+  app          App?      @relation(fields: [appIdRef], references: [id], onDelete: SetNull)
+
+  // Store identification
+  store        Store     // GOOGLE_PLAY, APPLE_APP_STORE, SAMSUNG_GALAXY_STORE, etc.
+  appId        String    // Store-specific app ID (e.g., com.example.app or 123456789)
+  country      String?   // Country code (us, in, gb, etc.)
+  locale       String?   // Locale code (en-US, en-IN, etc.)
+  
+  // Discovery context
+  rank         Int?      // Chart rank position
+  chartType    String?   // TOP_FREE, TOP_PAID, TOP_GROSSING, etc.
+  category     String?   // Category slug/ID
+  discoverySource String? // How we found this app (CHART, CATEGORY, SEARCH, SIMILAR, DEVELOPER)
+
+  // UNIFIED RAW PAYLOAD - Store-specific complete data as JSON
+  // Google Play: Full gplay.app() response
+  // Apple App Store: Full appstore.app() response
+  // Samsung/Huawei/Xiaomi: Their respective API responses
+  payload      Json      @map("rawPayload")
+  payloadHash  String?  // SHA-256 hash of payload for deduplication
+
+  // Common extracted fields (for quick querying without parsing JSON)
+  score        Float?    // Average rating
+  ratings      BigInt?   // Total number of ratings
+  reviewCount  BigInt?   // Total number of reviews
+  minInstalls  BigInt?   // Minimum install count (for ranges)
+  maxInstalls  BigInt?   // Maximum install count (for ranges)
+  histogram    Json?     // Rating distribution {1: count, 2: count, ...}
+
+  // Scraping metadata
+  scrapeMode   ScrapeMode // REAL_API, HTML_BACKUP, DUMMY_FALLBACK
+  scrapedAt    DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([appIdRef])
+  @@index([store, appId])
+  @@index([store, country])
+  @@index([payloadHash])
+  @@index([scrapedAt])
+  @@index([country])
+  @@index([scrapeMode])
+  @@index([discoverySource])
+  @@index([store, appId, country, payloadHash]) // Index for deduplication (not unique to allow same app scraped multiple times)
+}
+
+
