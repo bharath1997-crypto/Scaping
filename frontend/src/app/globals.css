@@ -6,6 +6,9 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 255, 255, 255;
   --background-end-rgb: 255, 255, 255;
+  --primary-blue: #2563EB;
+  --primary-blue-dark: #1E40AF;
+  --primary-blue-light: #3B82F6;
 }
 
 body {
@@ -22,5 +25,15 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  
+  .bg-primary-gradient {
+    background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
+  }
+  
+  .text-primary-gradient {
+    background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
-
