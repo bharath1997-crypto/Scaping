@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 const apiClient = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: API_URL.includes('/api/v1') ? API_URL : `${API_URL}/api/v1`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,12 +13,16 @@ export interface App {
   id: string;
   store: string;
   appId: string;
-  title: string;
-  developer: string;
+  title?: string;
+  name?: string; // Backend uses 'name' sometimes
+  developer?: string;
+  developerName?: string; // Backend uses 'developerName' sometimes
   developerId?: string;
   icon?: string;
+  iconUrl?: string; // Backend uses 'iconUrl' sometimes
   score?: number;
   ratings?: number;
+  ratingsCount?: number; // Backend uses 'ratingsCount' sometimes
   reviews?: number;
   minInstalls?: number;
   maxInstalls?: number;
@@ -26,11 +30,15 @@ export interface App {
   price?: number;
   currency?: string;
   category?: string;
+  primaryCategory?: string; // Backend uses 'primaryCategory' sometimes
   country?: string;
   rank?: number;
+  currentRank?: number; // Backend uses 'currentRank' sometimes
   description?: string;
+  summary?: string;
   screenshots?: string[];
   updatedAt?: string;
+  lastSeenAt?: string;
 }
 
 export interface PaginationInfo {
@@ -89,19 +97,43 @@ export interface ListAppsParams {
  * List apps with filtering, pagination, and sorting
  */
 export async function listApps(params: ListAppsParams = {}): Promise<AppsResponse> {
-  const response = await apiClient.get<AppsResponse>('/apps', { params });
-  return response.data;
+  try {
+    const response = await apiClient.get<AppsResponse>('/apps', { params });
+    return response.data;
+  } catch (error: any) {
+    // Return empty response if backend is not available
+    if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+      return {
+        ok: false,
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          pageSize: 25,
+          totalPages: 0,
+        },
+      };
+    }
+    throw error;
+  }
 }
 
 /**
  * Get detailed app information
  */
 export async function getAppDetail(store: string, appId: string): Promise<App> {
-  const response = await apiClient.get<AppDetailResponse>(`/apps/${store}/${appId}`);
-  if (!response.data.ok || !response.data.data) {
-    throw new Error('App not found');
+  try {
+    const response = await apiClient.get<AppDetailResponse>(`/apps/${store}/${appId}`);
+    if (!response.data.ok || !response.data.data) {
+      throw new Error('App not found');
+    }
+    return response.data.data;
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+      throw new Error('Backend API not available');
+    }
+    throw error;
   }
-  return response.data.data;
 }
 
 /**
@@ -112,14 +144,21 @@ export async function getAppReviewsAnalytics(
   appId: string,
   country?: string
 ): Promise<ReviewsAnalytics> {
-  const response = await apiClient.get<ReviewsAnalyticsResponse>(
-    `/apps/${store}/${appId}/reviews-analytics`,
-    { params: country ? { country } : {} }
-  );
-  if (!response.data.ok || !response.data.data) {
-    throw new Error('Reviews analytics not found');
+  try {
+    const response = await apiClient.get<ReviewsAnalyticsResponse>(
+      `/apps/${store}/${appId}/reviews-analytics`,
+      { params: country ? { country } : {} }
+    );
+    if (!response.data.ok || !response.data.data) {
+      throw new Error('Reviews analytics not found');
+    }
+    return response.data.data;
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+      throw new Error('Backend API not available');
+    }
+    throw error;
   }
-  return response.data.data;
 }
 
 /**

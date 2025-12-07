@@ -13,10 +13,13 @@ interface AppDetailPageProps {
 export default async function AppDetailPage({ params }: AppDetailPageProps) {
   const { store, appId } = params;
 
+  // Convert URL format to store enum (google-play -> GOOGLE_PLAY)
+  const storeEnum = store.toUpperCase().replace(/-/g, '_') as any;
+
   try {
     const [app, reviewsAnalytics] = await Promise.all([
-      getAppDetail(store.toUpperCase(), appId),
-      getAppReviewsAnalytics(store.toUpperCase(), appId).catch(() => null),
+      getAppDetail(storeEnum, appId),
+      getAppReviewsAnalytics(storeEnum, appId).catch(() => null),
     ]);
 
     const formatNumber = (num?: number) => {
@@ -35,16 +38,23 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
       XIAOMI_MI_STORE: 'Xiaomi Mi Store',
     }[app.store] || app.store;
 
+    // Handle different field names from backend
+    const appTitle = app.title || app.name || 'Unknown App';
+    const appDeveloper = app.developer || app.developerName || 'Unknown Developer';
+    const appIcon = app.icon || app.iconUrl;
+    const appRatings = app.ratings || app.ratingsCount;
+    const appRank = app.rank || app.currentRank;
+
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* App Header */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
           <div className="flex items-start space-x-6">
             {/* App Icon */}
-            {app.icon ? (
+            {appIcon ? (
               <Image
-                src={app.icon}
-                alt={app.title}
+                src={appIcon}
+                alt={appTitle}
                 width={120}
                 height={120}
                 className="rounded-lg"
@@ -59,8 +69,8 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
             <div className="flex-1">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{app.title}</h1>
-                  <p className="text-lg text-gray-600">{app.developer}</p>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{appTitle}</h1>
+                  <p className="text-lg text-gray-600">{appDeveloper}</p>
                 </div>
                 <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium">
                   {storeName}
@@ -77,9 +87,9 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
                         {app.score.toFixed(1)}
                       </span>
                       <span className="text-yellow-500">⭐</span>
-                      {app.ratings && (
+                      {appRatings && (
                         <span className="text-sm text-gray-500">
-                          ({formatNumber(app.ratings)})
+                          ({formatNumber(appRatings)})
                         </span>
                       )}
                     </div>
@@ -113,16 +123,16 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
               </div>
 
               {/* Rank & Category */}
-              {(app.rank || app.category) && (
+              {(appRank || app.category || app.primaryCategory) && (
                 <div className="flex items-center space-x-4 mt-4">
-                  {app.rank && (
+                  {appRank && (
                     <span className="text-sm text-gray-600">
-                      Rank: <span className="font-medium text-gray-900">#{app.rank}</span>
+                      Rank: <span className="font-medium text-gray-900">#{appRank}</span>
                     </span>
                   )}
-                  {app.category && (
+                  {(app.category || app.primaryCategory) && (
                     <span className="text-sm text-gray-600">
-                      Category: <span className="font-medium text-gray-900">{app.category}</span>
+                      Category: <span className="font-medium text-gray-900">{app.category || app.primaryCategory}</span>
                     </span>
                   )}
                   {app.country && (
@@ -137,7 +147,17 @@ export default async function AppDetailPage({ params }: AppDetailPageProps) {
         </div>
 
         {/* Tabs */}
-        <AppTabs app={app} reviewsAnalytics={reviewsAnalytics} />
+        <AppTabs 
+          app={{
+            ...app,
+            title: appTitle,
+            developer: appDeveloper,
+            icon: appIcon,
+            ratings: appRatings,
+            rank: appRank,
+          }} 
+          reviewsAnalytics={reviewsAnalytics} 
+        />
       </div>
     );
   } catch (error) {

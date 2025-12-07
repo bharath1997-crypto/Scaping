@@ -1,6 +1,6 @@
 import { prisma } from "../../utils/prisma.ts";
 import type { AppListItemDto, AppDetailDto, AppReviewsAnalyticsDto } from "../dtos/app.dto.ts";
-import { Store } from "@prisma/client";
+import type { Store } from "@prisma/client";
 
 interface ListAppsParams {
   store?: Store;

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { AppsService } from "../services/apps.service.ts";
-import { Store } from "@prisma/client";
+import type { Store } from "@prisma/client";
 
 /**
  * Parse store parameter from request

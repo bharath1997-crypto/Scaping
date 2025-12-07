@@ -23,7 +23,8 @@ module.exports = {
         error: '#EF4444',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        poppins: ['var(--font-poppins)', 'Poppins', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
     },

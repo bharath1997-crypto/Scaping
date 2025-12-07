@@ -62,6 +62,9 @@ export default function AppTabs({ app, reviewsAnalytics }: AppTabsProps) {
 }
 
 function OverviewTab({ app }: { app: App }) {
+  const appTitle = app.title || app.name || 'Unknown App';
+  const appDescription = app.description || app.summary;
+
   return (
     <div className="space-y-6">
       {/* Screenshots */}
@@ -73,7 +76,7 @@ function OverviewTab({ app }: { app: App }) {
               <Image
                 key={index}
                 src={screenshot}
-                alt={`${app.title} screenshot ${index + 1}`}
+                alt={`${appTitle} screenshot ${index + 1}`}
                 width={200}
                 height={400}
                 className="rounded-lg border border-gray-200"
@@ -84,10 +87,10 @@ function OverviewTab({ app }: { app: App }) {
       )}
 
       {/* Description */}
-      {app.description && (
+      {appDescription && (
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
-          <p className="text-gray-700 whitespace-pre-wrap">{app.description}</p>
+          <p className="text-gray-700 whitespace-pre-wrap">{appDescription}</p>
         </div>
       )}
 
@@ -103,11 +106,11 @@ function OverviewTab({ app }: { app: App }) {
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-1">Category</p>
-            <p className="font-medium text-gray-900">{app.category || 'N/A'}</p>
+            <p className="font-medium text-gray-900">{app.category || app.primaryCategory || 'N/A'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-1">Developer</p>
-            <p className="font-medium text-gray-900">{app.developer}</p>
+            <p className="font-medium text-gray-900">{app.developer || app.developerName || 'N/A'}</p>
           </div>
           {app.updatedAt && (
             <div>

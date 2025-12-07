@@ -305,4 +305,104 @@ model RawAppSnapshot {
   @@index([store, appId, country, payloadHash]) // Index for deduplication (not unique to allow same app scraped multiple times)
 }
 
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================================================
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  PHONE
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  DEVELOPER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String?  @unique
+  phoneNumber   String?  @unique
+  passwordHash  String?  // For email/password auth
+  
+  // Profile
+  name          String?
+  avatar        String?
+  role          UserRole @default(USER)
+  
+  // OAuth
+  googleId      String?  @unique
+  authProvider  AuthProvider @default(EMAIL)
+  
+  // Verification
+  emailVerified Boolean  @default(false)
+  phoneVerified Boolean  @default(false)
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+  
+  // Relations
+  otpCodes      OTPCode[]
+  refreshTokens RefreshToken[]
+  watchlist     WatchlistApp[]
+  
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([googleId])
+}
+
+model OTPCode {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  phoneNumber String   // For signup, might not have userId yet
+  code        String   // 6-digit code
+  purpose     String   // "SIGNUP", "LOGIN", "VERIFY_PHONE"
+  
+  expiresAt   DateTime
+  verified    Boolean  @default(false)
+  attempts    Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([phoneNumber])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// User watchlist for apps
+model WatchlistApp {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  store     Store
+  appId     String
+  
+  notes     String?
+  addedAt   DateTime @default(now())
+  
+  @@unique([userId, store, appId])
+  @@index([userId])
+}
+
 

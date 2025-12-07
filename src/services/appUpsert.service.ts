@@ -43,7 +43,7 @@ function calculateDataQuality(app: AppInfo): "RAW" | "CLEANED" | "FLAGGED" {
   const issues: string[] = [];
   
   if (!app.icon) issues.push("MISSING_ICON");
-  if (!app.score && app.ratings === 0) issues.push("NO_RATINGS");
+  if (!app.score && (!app.ratings || app.ratings === BigInt(0))) issues.push("NO_RATINGS");
   if (!app.summary && !app.description) issues.push("MISSING_DESCRIPTION");
   if (!app.developer) issues.push("MISSING_DEVELOPER");
   
