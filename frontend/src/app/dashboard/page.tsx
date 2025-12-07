@@ -238,25 +238,38 @@ export default function DashboardPage() {
               </div>
 
               <div className="space-y-4">
-                {recentApps.map((app) => (
-                  <div key={app.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center text-white font-bold">
-                        {app.name.substring(0, 2)}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold dark:text-white">{app.name}</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">{app.category}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold dark:text-white">{app.downloads}</p>
-                      <p className={`text-sm ${app.trend === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {app.change}
-                      </p>
-                    </div>
+                {recentApps.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                    <p>No tracked apps yet. Start tracking apps to see them here.</p>
+                    <Link href="/search" className="text-cyan-600 dark:text-cyan-400 hover:underline mt-2 inline-block">
+                      Search for apps →
+                    </Link>
                   </div>
-                ))}
+                ) : (
+                  recentApps.map((app) => (
+                    <Link 
+                      key={app.id} 
+                      href={`/apps/${app.id}`}
+                      className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center text-white font-bold">
+                          {app.name.substring(0, 2)}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold dark:text-white">{app.name}</h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">{app.category}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold dark:text-white">{app.downloads}</p>
+                        <p className={`text-sm ${app.trend === 'up' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {app.change}
+                        </p>
+                      </div>
+                    </Link>
+                  ))
+                )}
               </div>
             </div>
 
@@ -275,7 +288,12 @@ export default function DashboardPage() {
               </div>
 
               <div className="space-y-4">
-                {insights.map((insight) => (
+                {insights.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">
+                    No insights available yet.
+                  </div>
+                ) : (
+                  insights.map((insight) => (
                   <div key={insight.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-cyan-500 dark:hover:border-cyan-500 transition-colors cursor-pointer">
                     <div className="flex items-start gap-3 mb-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -309,7 +327,8 @@ export default function DashboardPage() {
                       <span className="text-cyan-600 dark:text-cyan-400 font-medium">{insight.confidence}% confidence</span>
                     </div>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
@@ -318,7 +337,12 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold mb-6 dark:text-white">Recent Activity</h2>
               
               <div className="space-y-4">
-                {recentActivity.map((activity) => (
+                {recentActivity.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">
+                    No recent activity.
+                  </div>
+                ) : (
+                  recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-3">
                     <div className="w-2 h-2 bg-cyan-500 rounded-full mt-2 flex-shrink-0"></div>
                     <div>
@@ -329,7 +353,8 @@ export default function DashboardPage() {
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{activity.time}</p>
                     </div>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
@@ -350,6 +375,7 @@ export default function DashboardPage() {
           </div>
 
         </div>
+        )}
 
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { submitContactForm } from '@/lib/app-api';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -47,16 +48,12 @@ export default function ContactPage() {
     if (!validateForm()) return;
     
     setIsSubmitting(true);
+    setErrors({});
     
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
+      const result = await submitContactForm(formData);
+      
+      if (result.success) {
         setSubmitSuccess(true);
         setFormData({
           name: '',
@@ -67,10 +64,10 @@ export default function ContactPage() {
         });
         setTimeout(() => setSubmitSuccess(false), 5000);
       } else {
-        setErrors({ submit: 'Failed to send message. Please try again.' });
+        setErrors({ submit: result.message || 'Failed to send message. Please try again.' });
       }
-    } catch (error) {
-      setErrors({ submit: 'Network error. Please try again.' });
+    } catch (error: any) {
+      setErrors({ submit: error.message || 'Network error. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
