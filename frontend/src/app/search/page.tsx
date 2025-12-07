@@ -1,16 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { searchApps, type SearchApp, type SearchFilters } from '@/lib/app-api';
 
 export default function SearchPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [selectedApps, setSelectedApps] = useState<number[]>([]);
+  const [selectedApps, setSelectedApps] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(true);
   const [sortBy, setSortBy] = useState('relevance');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [apps, setApps] = useState<SearchApp[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  // Filters state
+  // Filters state (using string values for UI, converted to API format)
   const [filters, setFilters] = useState({
     category: 'all',
     stores: [] as string[],
@@ -21,8 +30,96 @@ export default function SearchPage() {
     dateRange: 'all',
   });
 
-  // Mock data - replace with API
-  const apps = [
+  // Debounced search function
+  const performSearch = useCallback(async () => {
+    if (!searchQuery.trim() && Object.values(filters).every(v => !v || (Array.isArray(v) && v.length === 0))) {
+      setApps([]);
+      setTotal(0);
+      setTotalPages(0);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Prepare filters for API
+      const apiFilters: SearchFilters = {
+        category: filters.category === 'all' ? undefined : filters.category,
+        stores: filters.stores.length > 0 ? filters.stores : undefined,
+        minDownloads: filters.minDownloads || undefined,
+        maxDownloads: filters.maxDownloads || undefined,
+        minRating: filters.minRating || undefined,
+        region: filters.region === 'all' ? undefined : filters.region,
+        dateRange: filters.dateRange === 'all' ? undefined : filters.dateRange,
+      };
+
+      const result = await searchApps(searchQuery, apiFilters, page, 20);
+      setApps(result.apps);
+      setTotal(result.total);
+      setTotalPages(result.totalPages);
+    } catch (err: any) {
+      console.error('Search error:', err);
+      setError(err.message || 'Failed to search apps');
+      setApps([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, filters, page]);
+
+  // Search when query or filters change (with debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performSearch();
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [performSearch]);
+
+  // Reset to page 1 when search query or filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, filters]);
+
+  const handleSelectApp = (appId: string) => {
+    if (selectedApps.includes(appId)) {
+      setSelectedApps(selectedApps.filter(id => id !== appId));
+    } else if (selectedApps.length < 5) {
+      setSelectedApps([...selectedApps, appId]);
+    }
+  };
+
+  const handleStoreToggle = (store: string) => {
+    const currentStores = filters.stores || [];
+    if (currentStores.includes(store)) {
+      setFilters({ ...filters, stores: currentStores.filter(s => s !== store) });
+    } else {
+      setFilters({ ...filters, stores: [...currentStores, store] });
+    }
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      category: 'all',
+      stores: [],
+      minDownloads: '',
+      maxDownloads: '',
+      minRating: '',
+      region: 'all',
+      dateRange: 'all',
+    });
+    setSearchQuery('');
+    setPage(1);
+  };
+
+  const handleCompare = () => {
+    if (selectedApps.length > 0) {
+      router.push(`/apps/compare?apps=${selectedApps.join(',')}`);
+    }
+  };
+
+  // Mock categories and stores for filter UI
+  const categories = [
     {
       id: 1,
       name: 'Fitness Pro',
@@ -245,12 +342,12 @@ export default function SearchPage() {
                 >
                   Clear
                 </button>
-                <Link
-                  href={`/apps/compare?apps=${selectedApps.join(',')}`}
+                <button
+                  onClick={handleCompare}
                   className="px-4 py-1.5 text-sm bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors font-medium"
                 >
                   Compare Apps →
-                </Link>
+                </button>
               </div>
             </div>
           )}
@@ -269,7 +366,10 @@ export default function SearchPage() {
                 
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-bold dark:text-white">Filters</h2>
-                  <button className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline">
+                  <button 
+                    onClick={handleResetFilters}
+                    className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline"
+                  >
                     Reset All
                   </button>
                 </div>
@@ -394,10 +494,10 @@ export default function SearchPage() {
 
                 </div>
 
-                {/* Apply Button */}
-                <button className="w-full mt-6 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all">
-                  Apply Filters
-                </button>
+                {/* Info Text */}
+                <p className="w-full mt-6 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 text-center bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  Filters apply automatically as you type
+                </p>
 
               </div>
             </aside>
@@ -406,18 +506,54 @@ export default function SearchPage() {
           {/* Results */}
           <div className="flex-1">
             
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="ml-3 text-slate-600 dark:text-slate-400">Searching apps...</span>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+
             {/* Results Header */}
+            {!loading && (
             <div className="mb-6 flex items-center justify-between">
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Found <span className="font-semibold dark:text-white">{apps.length}</span> apps
+                Found <span className="font-semibold dark:text-white">{total.toLocaleString()}</span> app{total !== 1 ? 's' : ''}
+                {searchQuery && ` for "${searchQuery}"`}
               </p>
-              <button className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Export Results
-              </button>
+              {apps.length > 0 && (
+                <button className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export Results
+                </button>
+              )}
             </div>
+            )}
+
+            {/* Empty State */}
+            {!loading && !error && apps.length === 0 && (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h3 className="text-xl font-bold mb-2 dark:text-white">No apps found</h3>
+                <p className="text-slate-600 dark:text-slate-400 mb-6">
+                  {searchQuery ? `Try adjusting your search or filters` : `Start typing to search for apps`}
+                </p>
+              </div>
+            )}
+
+            {/* Grid View */}
+            {!loading && apps.length > 0 && viewMode === 'grid' && (
 
             {/* Grid View */}
             {viewMode === 'grid' && (
@@ -438,7 +574,7 @@ export default function SearchPage() {
                           {app.icon}
                         </div>
                         <div className="flex-1">
-                          <Link href={`/apps/google/${app.id}`} className="font-semibold hover:text-cyan-600 dark:text-white dark:hover:text-cyan-400">
+                          <Link href={`/apps/${app.store.toLowerCase().replace(' ', '-')}/${app.id}`} className="font-semibold hover:text-cyan-600 dark:text-white dark:hover:text-cyan-400">
                             {app.name}
                           </Link>
                           <p className="text-xs text-slate-600 dark:text-slate-400">{app.developer}</p>
@@ -497,7 +633,7 @@ export default function SearchPage() {
             )}
 
             {/* Table View */}
-            {viewMode === 'table' && (
+            {!loading && apps.length > 0 && viewMode === 'table' && (
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -536,7 +672,7 @@ export default function SearchPage() {
                                 {app.icon}
                               </div>
                               <div>
-                                <Link href={`/apps/google/${app.id}`} className="font-medium hover:text-cyan-600 dark:text-white dark:hover:text-cyan-400">
+                                <Link href={`/apps/${app.store.toLowerCase().replace(' ', '-')}/${app.id}`} className="font-medium hover:text-cyan-600 dark:text-white dark:hover:text-cyan-400">
                                   {app.name}
                                 </Link>
                                 <p className="text-xs text-slate-600 dark:text-slate-400">{app.developer}</p>
@@ -560,9 +696,12 @@ export default function SearchPage() {
                           </td>
                           <td className="px-6 py-4 text-sm font-medium text-cyan-600 dark:text-cyan-400">{app.price}</td>
                           <td className="px-6 py-4">
-                            <button className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline">
-                              Track
-                            </button>
+                            <Link 
+                              href={`/apps/${app.store.toLowerCase().replace(' ', '-')}/${app.id}`}
+                              className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline"
+                            >
+                              View
+                            </Link>
                           </td>
                         </tr>
                       ))}
@@ -571,25 +710,45 @@ export default function SearchPage() {
                 </div>
 
                 {/* Pagination */}
+                {totalPages > 1 && (
                 <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Showing <span className="font-medium">1-{apps.length}</span> of <span className="font-medium">{apps.length}</span>
+                    Showing <span className="font-medium">{(page - 1) * 20 + 1}-{Math.min(page * 20, total)}</span> of <span className="font-medium">{total.toLocaleString()}</span>
                   </p>
                   <div className="flex items-center gap-2">
-                    <button className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-white">
+                    <button 
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       Previous
                     </button>
-                    <button className="px-3 py-1.5 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors text-sm">
-                      1
-                    </button>
-                    <button className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-white">
-                      2
-                    </button>
-                    <button className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-white">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = i + 1;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`px-3 py-1.5 rounded-md transition-colors text-sm ${
+                            page === pageNum
+                              ? 'bg-cyan-600 text-white'
+                              : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button 
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       Next
                     </button>
                   </div>
                 </div>
+                )}
               </div>
             )}
 
