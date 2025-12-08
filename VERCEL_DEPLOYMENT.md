@@ -14,17 +14,19 @@ The `vercel.json` file contains:
 ```json
 {
   "buildCommand": "npm install && npm run build",
-  "outputDirectory": ".next",
+  "outputDirectory": "frontend/.next",
   "installCommand": "npm install",
   "framework": "nextjs",
   "rootDirectory": "frontend"
 }
 ```
 
+**Important**: The `outputDirectory` is `frontend/.next` (relative to repository root), not just `.next`. This is because when `rootDirectory` is set, Vercel needs the output path relative to the repository root, not the rootDirectory.
+
 This tells Vercel:
 - **rootDirectory**: Use the `frontend` directory as the project root
 - **buildCommand**: Run `npm install && npm run build` from the frontend directory
-- **outputDirectory**: The `.next` folder (Next.js build output)
+- **outputDirectory**: The `frontend/.next` folder (relative to repository root - this is where Next.js creates the build output)
 - **framework**: Next.js (for automatic optimizations)
 
 ## 📋 Steps to Deploy
