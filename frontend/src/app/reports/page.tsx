@@ -1,34 +1,120 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-type ReportStatus = 'draft' | 'generating' | 'ready' | 'failed' | 'scheduled';
-type ReportFormat = 'pdf' | 'excel' | 'pptx';
-type ReportFrequency = 'once' | 'daily' | 'weekly' | 'monthly';
-
-interface Report {
-  id: string;
-  name: string;
-  description: string;
-  format: ReportFormat;
-  status: ReportStatus;
-  createdAt: string;
-  completedAt?: string;
-  downloadUrl?: string;
-  fileSize?: string;
-  modules: string[];
-  apps: string[];
-  frequency: ReportFrequency;
-  nextRun?: string;
-}
+import { 
+  getReports, 
+  createReport, 
+  deleteReport, 
+  downloadReport, 
+  updateReportSchedule,
+  type Report,
+  type CreateReportInput
+} from '@/lib/app-api';
+import { formatApiError, downloadBlob } from '@/lib/api-utils';
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<'reports' | 'scheduled'>('reports');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [createFormData, setCreateFormData] = useState({
+    name: '',
+    description: '',
+    format: 'pdf' as Report['format'],
+    modules: [] as string[],
+    appIds: [] as string[],
+    frequency: 'once' as Report['frequency'],
+    scheduleDate: '',
+  });
 
-  // Mock data - replace with API
-  const reports: Report[] = [
+  // Fetch reports
+  useEffect(() => {
+    fetchReports();
+  }, [activeTab]);
+
+  async function fetchReports() {
+    try {
+      setLoading(true);
+      setError(null);
+      const frequency = activeTab === 'scheduled' ? undefined : 'once';
+      const data = await getReports(frequency);
+      setReports(data);
+    } catch (err: any) {
+      console.error('Failed to fetch reports:', err);
+      setError(formatApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreateReport() {
+    if (!createFormData.name || createFormData.modules.length === 0 || createFormData.appIds.length === 0) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setError(null);
+      const input: CreateReportInput = {
+        name: createFormData.name,
+        description: createFormData.description,
+        format: createFormData.format,
+        modules: createFormData.modules,
+        appIds: createFormData.appIds,
+        frequency: createFormData.frequency,
+        scheduleDate: createFormData.scheduleDate || undefined,
+      };
+      const newReport = await createReport(input);
+      setReports([...reports, newReport]);
+      setShowCreateModal(false);
+      setCreateFormData({
+        name: '',
+        description: '',
+        format: 'pdf',
+        modules: [],
+        appIds: [],
+        frequency: 'once',
+        scheduleDate: '',
+      });
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleDeleteReport(id: string) {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+
+    try {
+      await deleteReport(id);
+      setReports(reports.filter(r => r.id !== id));
+    } catch (err: any) {
+      setError(formatApiError(err));
+    }
+  }
+
+  async function handleDownloadReport(id: string) {
+    try {
+      const blob = await downloadReport(id);
+      // Find report to get filename
+      const report = reports.find(r => r.id === id);
+      const filename = report 
+        ? `report-${report.name.toLowerCase().replace(/\s+/g, '-')}.${report.format}`
+        : `report-${id}.pdf`;
+      downloadBlob(blob, filename);
+    } catch (err: any) {
+      setError(formatApiError(err));
+    }
+  }
+
+  // Note: Reports are now fetched from API via useEffect
+  // This mock data is no longer used but kept for reference
+  const _mockReports: Report[] = [
     {
       id: '1',
       name: 'Q4 2024 Performance Report',
@@ -85,8 +171,14 @@ export default function ReportsPage() {
 
   const regularReports = reports.filter(r => r.frequency === 'once');
   const scheduledReports = reports.filter(r => r.frequency !== 'once');
+  
+  // Calculate stats
+  const totalReports = reports.length;
+  const readyReports = reports.filter(r => r.status === 'ready').length;
+  const generatingReports = reports.filter(r => r.status === 'generating').length;
+  const scheduledReportsCount = scheduledReports.length;
 
-  const getStatusColor = (status: ReportStatus) => {
+  const getStatusColor = (status: Report['status']) => {
     switch (status) {
       case 'ready': return 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400';
       case 'generating': return 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400';
@@ -96,7 +188,7 @@ export default function ReportsPage() {
     }
   };
 
-  const getFormatIcon = (format: ReportFormat) => {
+  const getFormatIcon = (format: Report['format']) => {
     switch (format) {
       case 'pdf':
         return <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
@@ -128,15 +220,15 @@ export default function ReportsPage() {
               </p>
             </div>
 
-            <Link
-              href="/reports/generate"
+            <button
+              onClick={() => setShowCreateModal(true)}
               className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all"
             >
               <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               Generate Report
-            </Link>
+            </button>
           </div>
 
           {/* Tabs */}
@@ -192,7 +284,7 @@ export default function ReportsPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold dark:text-white">{reports.length}</p>
+            <p className="text-3xl font-bold dark:text-white">{totalReports}</p>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
@@ -204,9 +296,7 @@ export default function ReportsPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold dark:text-white">
-              {reports.filter(r => r.status === 'ready').length}
-            </p>
+            <p className="text-3xl font-bold dark:text-white">{readyReports}</p>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
@@ -219,9 +309,7 @@ export default function ReportsPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold dark:text-white">
-              {reports.filter(r => r.status === 'generating').length}
-            </p>
+            <p className="text-3xl font-bold dark:text-white">{generatingReports}</p>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
@@ -233,14 +321,46 @@ export default function ReportsPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold dark:text-white">{scheduledReports.length}</p>
+            <p className="text-3xl font-bold dark:text-white">{scheduledReportsCount}</p>
           </div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="ml-3 text-slate-600 dark:text-slate-400">Loading reports...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
         {/* My Reports Tab */}
-        {activeTab === 'reports' && (
+        {!loading && activeTab === 'reports' && (
           <div className="space-y-4">
-            {regularReports.map((report) => (
+            {regularReports.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-xl p-12 border border-slate-200 dark:border-slate-800 text-center">
+                <svg className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="text-xl font-bold mb-2 dark:text-white">No reports yet</h3>
+                <p className="text-slate-600 dark:text-slate-400 mb-6">
+                  Generate your first report to get started
+                </p>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all"
+                >
+                  Generate Report
+                </button>
+              </div>
+            ) : (
+              regularReports.map((report) => (
               <div
                 key={report.id}
                 className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all"
@@ -454,4 +574,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
 

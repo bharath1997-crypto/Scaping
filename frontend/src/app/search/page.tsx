@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { searchApps, type SearchApp, type SearchFilters } from '@/lib/app-api';
+import { formatApiError } from '@/lib/api-utils';
 
 export default function SearchPage() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function SearchPage() {
       setTotalPages(result.totalPages);
     } catch (err: any) {
       console.error('Search error:', err);
-      setError(err.message || 'Failed to search apps');
+      setError(formatApiError(err));
       setApps([]);
     } finally {
       setLoading(false);
@@ -295,7 +296,7 @@ export default function SearchPage() {
             </div>
           </div>
 
-          {/* Search Bar */}
+      {/* Search Bar */}
           <div className="flex gap-3">
             <div className="flex-1 relative">
               <input
@@ -499,11 +500,11 @@ export default function SearchPage() {
                   Filters apply automatically as you type
                 </p>
 
-              </div>
+        </div>
             </aside>
-          )}
+      )}
 
-          {/* Results */}
+      {/* Results */}
           <div className="flex-1">
             
             {/* Loading State */}
@@ -609,7 +610,7 @@ export default function SearchPage() {
                         <p className="text-xs text-slate-600 dark:text-slate-400">Rating</p>
                         <p className="font-semibold dark:text-white">{app.rating} ⭐</p>
                       </div>
-                    </div>
+          </div>
 
                     {/* Trend & Price */}
                     <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
@@ -707,7 +708,7 @@ export default function SearchPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+              </div>
 
                 {/* Pagination */}
                 {totalPages > 1 && (
@@ -748,9 +749,9 @@ export default function SearchPage() {
                     </button>
                   </div>
                 </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
           </div>
 

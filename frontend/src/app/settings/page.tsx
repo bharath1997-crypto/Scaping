@@ -4,8 +4,23 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import {
+  getUserProfile,
+  updateUserProfile,
+  changePassword,
+  getAPIKeys,
+  createAPIKey,
+  deleteAPIKey,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  type UserProfile,
+  type APIKey,
+  type NotificationPreferences,
+  type ChangePasswordInput,
+} from '@/lib/app-api';
+import { formatApiError, copyToClipboard } from '@/lib/api-utils';
 
 type SettingsTab = 'profile' | 'account' | 'notifications' | 'api' | 'billing' | 'integrations';
 
@@ -13,40 +28,201 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [showAPIKeyModal, setShowAPIKeyModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  // Mock data - replace with API
-  const user = {
-    name: 'John Doe',
-    email: 'john@example.com',
-    avatar: '',
-    company: 'TechCorp',
-    role: 'Product Manager',
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  
+  // User profile state
+  const [user, setUser] = useState<UserProfile>({
+    name: '',
+    email: '',
+    company: '',
+    role: '',
     timezone: 'America/Los_Angeles',
     language: 'en',
-    plan: 'Pro',
-    trackedApps: 12,
-    apiCallsUsed: 8432,
-    apiCallsLimit: 10000,
-  };
+  });
+  
+  // Form states
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    email: '',
+    company: '',
+    role: '',
+    timezone: 'America/Los_Angeles',
+    language: 'en',
+  });
+  
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  
+  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
+  const [newAPIKeyName, setNewAPIKeyName] = useState('');
+  const [creatingAPIKey, setCreatingAPIKey] = useState(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+  
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>({
+    emailAlerts: true,
+    emailWeeklyDigest: true,
+    emailReportReady: true,
+    emailMarketing: false,
+    pushBrowser: false,
+    pushMobile: false,
+  });
 
-  const apiKeys = [
-    {
-      id: '1',
-      name: 'Production API Key',
-      key: 'sk_live_xxxxxxxxxxxxxxxxxxxx',
-      created: '2024-11-15',
-      lastUsed: '2024-12-06',
-      calls: 8432,
-    },
-    {
-      id: '2',
-      name: 'Development API Key',
-      key: 'sk_test_xxxxxxxxxxxxxxxxxxxx',
-      created: '2024-10-01',
-      lastUsed: '2024-12-05',
-      calls: 1234,
-    },
-  ];
+  // Fetch user data
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  async function fetchUserData() {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [profileData, apiKeysData, notificationData] = await Promise.all([
+        getUserProfile().catch(() => null),
+        getAPIKeys().catch(() => []),
+        getNotificationPreferences().catch(() => null),
+      ]);
+      
+      if (profileData) {
+        setUser(profileData);
+        setProfileForm({
+          name: profileData.name || '',
+          email: profileData.email || '',
+          company: profileData.company || '',
+          role: profileData.role || '',
+          timezone: profileData.timezone || 'America/Los_Angeles',
+          language: profileData.language || 'en',
+        });
+      }
+      
+      if (apiKeysData) {
+        setApiKeys(apiKeysData);
+      }
+      
+      if (notificationData) {
+        setNotificationPrefs(notificationData);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch user data:', err);
+      setError(formatApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUpdateProfile() {
+    try {
+      setError(null);
+      setSuccess(null);
+      const updated = await updateUserProfile(profileForm);
+      setUser(updated);
+      setSuccess('Profile updated successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(formatApiError(err));
+    }
+  }
+
+  async function handleChangePassword() {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    try {
+      setError(null);
+      setSuccess(null);
+      await changePassword(passwordForm as ChangePasswordInput);
+      setSuccess('Password changed successfully!');
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(formatApiError(err));
+    }
+  }
+
+  async function handleCreateAPIKey() {
+    if (!newAPIKeyName.trim()) {
+      setError('Please enter a name for the API key');
+      return;
+    }
+
+    try {
+      setCreatingAPIKey(true);
+      setError(null);
+      const newKey = await createAPIKey(newAPIKeyName);
+      setApiKeys([...apiKeys, newKey]);
+      setNewAPIKeyName('');
+      setShowAPIKeyModal(false);
+      
+      // Copy key to clipboard automatically
+      const copied = await copyToClipboard(newKey.key);
+      if (copied) {
+        setSuccess('API key created and copied to clipboard!');
+        setCopiedKeyId(newKey.id);
+        setTimeout(() => {
+          setCopiedKeyId(null);
+          setSuccess(null);
+        }, 5000);
+      } else {
+        setSuccess('API key created successfully! Copy it now - you won\'t see it again.');
+      }
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setCreatingAPIKey(false);
+    }
+  }
+
+  async function handleCopyAPIKey(key: string, keyId: string) {
+    const copied = await copyToClipboard(key);
+    if (copied) {
+      setCopiedKeyId(keyId);
+      setSuccess('API key copied to clipboard!');
+      setTimeout(() => {
+        setCopiedKeyId(null);
+        setSuccess(null);
+      }, 2000);
+    } else {
+      setError('Failed to copy to clipboard');
+    }
+  }
+
+  async function handleDeleteAPIKey(id: string) {
+    if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteAPIKey(id);
+      setApiKeys(apiKeys.filter(k => k.id !== id));
+      setSuccess('API key deleted successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(formatApiError(err));
+    }
+  }
+
+  async function handleUpdateNotifications() {
+    try {
+      setError(null);
+      setSuccess(null);
+      await updateNotificationPreferences(notificationPrefs);
+      setSuccess('Notification preferences updated!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(formatApiError(err));
+    }
+  }
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: '👤' },
@@ -97,8 +273,28 @@ export default function SettingsPage() {
           {/* Content */}
           <div className="flex-1">
             
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="ml-3 text-slate-600 dark:text-slate-400">Loading settings...</span>
+              </div>
+            )}
+
+            {/* Error/Success Messages */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+            {success && (
+              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="text-green-600 dark:text-green-400">{success}</p>
+              </div>
+            )}
+            
             {/* Profile Tab */}
-            {activeTab === 'profile' && (
+            {!loading && activeTab === 'profile' && (
               <div className="space-y-6">
                 <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
                   <h2 className="text-xl font-bold mb-6 dark:text-white">Profile Information</h2>
@@ -106,7 +302,7 @@ export default function SettingsPage() {
                   {/* Avatar */}
                   <div className="flex items-center gap-6 mb-6">
                     <div className="w-24 h-24 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                      {user.name.split(' ').map(n => n[0]).join('')}
+                      {profileForm.name ? profileForm.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                     </div>
                     <div>
                       <button className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm dark:text-white mr-2">
@@ -125,7 +321,8 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="text"
-                        defaultValue={user.name}
+                        value={profileForm.name}
+                        onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                         className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
                       />
                     </div>
@@ -135,7 +332,8 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="email"
-                        defaultValue={user.email}
+                        value={profileForm.email}
+                        onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                         className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
                       />
                     </div>
@@ -145,7 +343,8 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="text"
-                        defaultValue={user.company}
+                        value={profileForm.company}
+                        onChange={(e) => setProfileForm({ ...profileForm, company: e.target.value })}
                         className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
                       />
                     </div>
@@ -207,7 +406,7 @@ export default function SettingsPage() {
             )}
 
             {/* Account Tab */}
-            {activeTab === 'account' && (
+            {!loading && activeTab === 'account' && (
               <div className="space-y-6">
                 {/* Password */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
@@ -220,6 +419,8 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="password"
+                        value={passwordForm.currentPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                         className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
                       />
                     </div>
@@ -229,6 +430,8 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="password"
+                        value={passwordForm.newPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                         className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
                       />
                     </div>
@@ -238,13 +441,18 @@ export default function SettingsPage() {
                       </label>
                       <input
                         type="password"
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                         className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
                       />
                     </div>
                   </div>
 
                   <div className="mt-6">
-                    <button className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all">
+                    <button 
+                      onClick={handleChangePassword}
+                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all"
+                    >
                       Update Password
                     </button>
                   </div>
@@ -330,7 +538,7 @@ export default function SettingsPage() {
             )}
 
             {/* Notifications Tab */}
-            {activeTab === 'notifications' && (
+            {!loading && activeTab === 'notifications' && (
               <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
                 <h2 className="text-xl font-bold mb-6 dark:text-white">Notification Preferences</h2>
                 
@@ -344,28 +552,48 @@ export default function SettingsPage() {
                           <p className="font-medium dark:text-white">Alert Notifications</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">Receive emails when alerts are triggered</p>
                         </div>
-                        <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-slate-300" />
+                        <input 
+                          type="checkbox" 
+                          checked={notificationPrefs.emailAlerts}
+                          onChange={(e) => setNotificationPrefs({ ...notificationPrefs, emailAlerts: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-300" 
+                        />
                       </label>
                       <label className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
                         <div>
                           <p className="font-medium dark:text-white">Weekly Digest</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">Summary of your tracked apps performance</p>
                         </div>
-                        <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-slate-300" />
+                        <input 
+                          type="checkbox" 
+                          checked={notificationPrefs.emailWeeklyDigest}
+                          onChange={(e) => setNotificationPrefs({ ...notificationPrefs, emailWeeklyDigest: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-300" 
+                        />
                       </label>
                       <label className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
                         <div>
                           <p className="font-medium dark:text-white">Report Ready</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">Get notified when reports are generated</p>
                         </div>
-                        <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-slate-300" />
+                        <input 
+                          type="checkbox" 
+                          checked={notificationPrefs.emailReportReady}
+                          onChange={(e) => setNotificationPrefs({ ...notificationPrefs, emailReportReady: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-300" 
+                        />
                       </label>
                       <label className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
                         <div>
                           <p className="font-medium dark:text-white">Marketing Emails</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">Product updates and tips</p>
                         </div>
-                        <input type="checkbox" className="w-5 h-5 rounded border-slate-300" />
+                        <input 
+                          type="checkbox" 
+                          checked={notificationPrefs.emailMarketing}
+                          onChange={(e) => setNotificationPrefs({ ...notificationPrefs, emailMarketing: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-300" 
+                        />
                       </label>
                     </div>
                   </div>
@@ -379,21 +607,34 @@ export default function SettingsPage() {
                           <p className="font-medium dark:text-white">Browser Notifications</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">Get desktop notifications</p>
                         </div>
-                        <input type="checkbox" className="w-5 h-5 rounded border-slate-300" />
+                        <input 
+                          type="checkbox" 
+                          checked={notificationPrefs.pushBrowser}
+                          onChange={(e) => setNotificationPrefs({ ...notificationPrefs, pushBrowser: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-300" 
+                        />
                       </label>
                       <label className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
                         <div>
                           <p className="font-medium dark:text-white">Mobile Push</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">Notifications on mobile app</p>
                         </div>
-                        <input type="checkbox" className="w-5 h-5 rounded border-slate-300" />
+                        <input 
+                          type="checkbox" 
+                          checked={notificationPrefs.pushMobile}
+                          onChange={(e) => setNotificationPrefs({ ...notificationPrefs, pushMobile: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-300" 
+                        />
                       </label>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 flex justify-end">
-                  <button className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all">
+                  <button 
+                    onClick={handleUpdateNotifications}
+                    className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all"
+                  >
                     Save Preferences
                   </button>
                 </div>
@@ -401,7 +642,7 @@ export default function SettingsPage() {
             )}
 
             {/* API Keys Tab */}
-            {activeTab === 'api' && (
+            {!loading && activeTab === 'api' && (
               <div className="space-y-6">
                 <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-6">
@@ -419,44 +660,64 @@ export default function SettingsPage() {
                     </button>
                   </div>
 
-                  {/* Usage Stats */}
-                  <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">API Usage this month</span>
-                      <span className="text-sm font-semibold dark:text-white">
-                        {user.apiCallsUsed.toLocaleString()} / {user.apiCallsLimit.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
-                        style={{ width: `${(user.apiCallsUsed / user.apiCallsLimit) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
                   {/* API Keys List */}
                   <div className="space-y-4">
-                    {apiKeys.map((key) => (
-                      <div key={key.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h3 className="font-semibold dark:text-white">{key.name}</h3>
-                            <p className="text-sm font-mono text-slate-600 dark:text-slate-400 mt-1">{key.key}</p>
-                          </div>
-                          <button className="text-slate-400 hover:text-red-600 dark:hover:text-red-400">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-                          <span>Created: {new Date(key.created).toLocaleDateString()}</span>
-                          <span>Last used: {new Date(key.lastUsed).toLocaleDateString()}</span>
-                          <span>Calls: {key.calls.toLocaleString()}</span>
-                        </div>
+                    {apiKeys.length === 0 ? (
+                      <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                        <svg className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <p className="mb-4">No API keys yet</p>
+                        <button
+                          onClick={() => setShowAPIKeyModal(true)}
+                          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all"
+                        >
+                          Create Your First Key
+                        </button>
                       </div>
-                    ))}
+                    ) : (
+                      apiKeys.map((key) => (
+                        <div key={key.id} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-semibold dark:text-white">{key.name}</h3>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-sm font-mono text-slate-600 dark:text-slate-400">{key.key}</p>
+                                <button
+                                  onClick={() => handleCopyAPIKey(key.key, key.id)}
+                                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                                  title="Copy API key"
+                                >
+                                  {copiedKeyId === key.id ? (
+                                    <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => handleDeleteAPIKey(key.id)}
+                              className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 ml-4"
+                              title="Delete API key"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
+                            <span>Created: {new Date(key.created).toLocaleDateString()}</span>
+                            <span>Last used: {new Date(key.lastUsed).toLocaleDateString()}</span>
+                            <span>Calls: {key.calls.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -479,7 +740,7 @@ export default function SettingsPage() {
             )}
 
             {/* Billing Tab */}
-            {activeTab === 'billing' && (
+            {!loading && activeTab === 'billing' && (
               <div className="space-y-6">
                 {/* Current Plan */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
@@ -555,7 +816,7 @@ export default function SettingsPage() {
             )}
 
             {/* Integrations Tab */}
-            {activeTab === 'integrations' && (
+            {!loading && activeTab === 'integrations' && (
               <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800">
                 <h2 className="text-xl font-bold mb-6 dark:text-white">Integrations</h2>
                 
@@ -647,6 +908,68 @@ export default function SettingsPage() {
 
         </div>
       </div>
+
+      {/* Create API Key Modal */}
+      {showAPIKeyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold mb-4 dark:text-white">Create API Key</h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Give your API key a descriptive name to help you identify it later.
+            </p>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2 dark:text-white">
+                Key Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newAPIKeyName}
+                onChange={(e) => setNewAPIKeyName(e.target.value)}
+                placeholder="e.g., Production API Key"
+                className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
+                autoFocus
+              />
+            </div>
+
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+              <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                <strong>Important:</strong> Make sure to copy your API key immediately after creation. You won't be able to see it again.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAPIKeyModal(false);
+                  setNewAPIKeyName('');
+                  setError(null);
+                }}
+                className="flex-1 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors dark:text-white font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateAPIKey}
+                disabled={creatingAPIKey || !newAPIKeyName.trim()}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creatingAPIKey ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Creating...
+                  </span>
+                ) : (
+                  'Create Key'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Account Modal */}
       {showDeleteModal && (

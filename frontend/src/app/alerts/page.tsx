@@ -12,10 +12,13 @@ import {
   deleteAlert, 
   toggleAlertStatus, 
   getAlertHistory,
+  getTrackedApps,
   type Alert,
   type CreateAlertInput,
-  type AlertHistory as AlertHistoryType
+  type AlertHistory as AlertHistoryType,
+  type TrackedApp
 } from '@/lib/app-api';
+import { formatApiError } from '@/lib/api-utils';
 
 type AlertStatus = 'active' | 'paused' | 'triggered' | 'archived';
 
@@ -28,6 +31,8 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<AlertHistoryType[]>([]);
   const [creating, setCreating] = useState(false);
+  const [trackedApps, setTrackedApps] = useState<TrackedApp[]>([]);
+  const [loadingApps, setLoadingApps] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     name: '',
     appId: '',
@@ -41,6 +46,7 @@ export default function AlertsPage() {
   // Fetch alerts
   useEffect(() => {
     fetchAlerts();
+    fetchTrackedApps();
   }, []);
 
   // Fetch history when tab changes
@@ -50,6 +56,20 @@ export default function AlertsPage() {
     }
   }, [activeTab]);
 
+  async function fetchTrackedApps() {
+    try {
+      setLoadingApps(true);
+      const apps = await getTrackedApps();
+      setTrackedApps(apps);
+    } catch (err: any) {
+      console.error('Failed to fetch tracked apps:', err);
+      // Don't show error, just use empty array
+      setTrackedApps([]);
+    } finally {
+      setLoadingApps(false);
+    }
+  }
+
   async function fetchAlerts() {
     try {
       setLoading(true);
@@ -58,7 +78,7 @@ export default function AlertsPage() {
       setAlerts(data);
     } catch (err: any) {
       console.error('Failed to fetch alerts:', err);
-      setError(err.message || 'Failed to load alerts');
+      setError(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -104,7 +124,7 @@ export default function AlertsPage() {
         notifications: [],
       });
     } catch (err: any) {
-      setError(err.message || 'Failed to create alert');
+      setError(formatApiError(err));
     } finally {
       setCreating(false);
     }
@@ -117,7 +137,7 @@ export default function AlertsPage() {
       await deleteAlert(id);
       setAlerts(alerts.filter(a => a.id !== id));
     } catch (err: any) {
-      setError(err.message || 'Failed to delete alert');
+      setError(formatApiError(err));
     }
   }
 
@@ -127,7 +147,7 @@ export default function AlertsPage() {
       const updated = await toggleAlertStatus(id, newStatus);
       setAlerts(alerts.map(a => a.id === id ? updated : a));
     } catch (err: any) {
-      setError(err.message || 'Failed to update alert status');
+      setError(formatApiError(err));
     }
   }
 
@@ -595,15 +615,23 @@ export default function AlertsPage() {
                 <select 
                   value={createFormData.appId}
                   onChange={(e) => setCreateFormData({ ...createFormData, appId: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white"
+                  disabled={loadingApps}
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg dark:bg-slate-800 dark:text-white disabled:opacity-50"
                 >
-                  <option value="">Choose an app...</option>
-                  {/* TODO: Load from API */}
-                  <option value="1">🏃 Fitness Pro</option>
-                  <option value="2">💰 Budget Master</option>
-                  <option value="3">📸 Photo Editor X</option>
-                  <option value="4">🗣️ Language Learn</option>
+                  <option value="">
+                    {loadingApps ? 'Loading apps...' : 'Choose an app...'}
+                  </option>
+                  {trackedApps.map((app) => (
+                    <option key={app.id} value={app.id}>
+                      {app.icon && `${app.icon} `}{app.name}
+                    </option>
+                  ))}
                 </select>
+                {trackedApps.length === 0 && !loadingApps && (
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    No tracked apps yet. <Link href="/search" className="text-cyan-600 dark:text-cyan-400 hover:underline">Start tracking apps</Link> to create alerts.
+                  </p>
+                )}
               </div>
 
               {/* Metric */}
