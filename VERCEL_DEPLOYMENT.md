@@ -6,28 +6,32 @@ If you're getting a 404 error on Vercel, it's likely because Vercel is trying to
 
 ## ✅ Solution
 
-The `vercel.json` file has been created in the root directory to configure Vercel to use the `frontend` directory as the root.
+**Important**: Vercel's new config schema does NOT allow `rootDirectory` in `vercel.json`. You must set it in the Vercel UI instead.
 
 ### Configuration
 
-The `vercel.json` file contains:
+The `vercel.json` file contains only the schema reference:
 ```json
 {
-  "buildCommand": "npm install && npm run build",
-  "outputDirectory": "frontend/.next",
-  "installCommand": "npm install",
-  "framework": "nextjs",
-  "rootDirectory": "frontend"
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }
 ```
 
-**Important**: The `outputDirectory` is `frontend/.next` (relative to repository root), not just `.next`. This is because when `rootDirectory` is set, Vercel needs the output path relative to the repository root, not the rootDirectory.
+### Setting Root Directory in Vercel UI
 
-This tells Vercel:
-- **rootDirectory**: Use the `frontend` directory as the project root
-- **buildCommand**: Run `npm install && npm run build` from the frontend directory
-- **outputDirectory**: The `frontend/.next` folder (relative to repository root - this is where Next.js creates the build output)
-- **framework**: Next.js (for automatic optimizations)
+You **must** configure the root directory in the Vercel Dashboard:
+
+1. Go to your Vercel project settings
+2. Navigate to **Settings** → **General**
+3. Under **Root Directory**, click **Edit**
+4. Select **`frontend`** from the dropdown
+5. Click **Save**
+
+Vercel will then:
+- Use the `frontend` directory as the project root
+- Run `npm install` and `npm run build` from the frontend directory
+- Find the build output in `.next` (relative to frontend directory)
+- Automatically detect Next.js framework
 
 ## 📋 Steps to Deploy
 
@@ -39,12 +43,15 @@ git commit -m "fix: Add Vercel configuration for frontend directory"
 git push
 ```
 
-### 2. Configure in Vercel Dashboard
+### 2. Configure Root Directory in Vercel Dashboard (REQUIRED)
 
 1. Go to your Vercel project settings
 2. Navigate to **Settings** → **General**
-3. Under **Root Directory**, make sure it's set to `frontend` (or leave it empty if using vercel.json)
-4. Save changes
+3. Under **Root Directory**, click **Edit**
+4. Select **`frontend`** from the dropdown
+5. Click **Save**
+
+**This step is mandatory** - Vercel's new config schema doesn't allow `rootDirectory` in `vercel.json`, so it must be set in the UI.
 
 ### 3. Set Environment Variables
 
@@ -77,7 +84,7 @@ After pushing `vercel.json` and setting environment variables:
 
 2. **Verify Root Directory**: 
    - In Vercel Dashboard → Settings → General
-   - Root Directory should be `frontend` or empty (if using vercel.json)
+   - Root Directory **must** be set to `frontend` in the UI (cannot be set in vercel.json)
 
 3. **Check Environment Variables**:
    - Make sure all `NEXT_PUBLIC_*` variables are set
