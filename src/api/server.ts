@@ -4,6 +4,12 @@ import cors from "cors";
 import passport from "passport";
 import appsRoutes from "./routes/apps.routes.ts";
 import authRoutes from "./routes/auth.routes.ts";
+import dashboardRoutes from "./routes/dashboard.routes.ts";
+import contactRoutes from "./routes/contact.routes.ts";
+import searchRoutes from "./routes/search.routes.ts";
+import alertsRoutes from "./routes/alerts.routes.ts";
+import reportsRoutes from "./routes/reports.routes.ts";
+import userRoutes from "./routes/user.routes.ts";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -70,10 +76,12 @@ app.get("/api/v1/auth/google-debug", (req, res) => {
 // Mount API routes
 app.use("/api/v1/apps", appsRoutes);
 app.use("/api/v1/auth", authRoutes);
-
-// TODO: Add other routes later
-// app.use("/api/v1/rankings", rankingsRoutes);
-// app.use("/api/v1/search", searchRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/contact", contactRoutes);
+app.use("/api/v1/search", searchRoutes);
+app.use("/api/v1/alerts", alertsRoutes);
+app.use("/api/v1/reports", reportsRoutes);
+app.use("/api/v1/user", userRoutes);
 
 // ============================================================================
 // Error Handling Middleware (must be last, after all routes)
@@ -127,6 +135,43 @@ app.listen(PORT, () => {
   console.log("║    GET  /api/v1/auth/me                                   ║");
   console.log("║    POST /api/v1/auth/refresh                              ║");
   console.log("║    POST /api/v1/auth/logout                               ║");
+  console.log("╠════════════════════════════════════════════════════════════╣");
+  console.log("║  Dashboard Endpoints:                                     ║");
+  console.log("║    GET /api/v1/dashboard                                  ║");
+  console.log("╠════════════════════════════════════════════════════════════╣");
+  console.log("║  Contact Endpoints:                                       ║");
+  console.log("║    POST /api/v1/contact                                   ║");
+  console.log("╠════════════════════════════════════════════════════════════╣");
+  console.log("║  Search Endpoints:                                        ║");
+  console.log("║    GET /api/v1/search                                      ║");
+  console.log("╠════════════════════════════════════════════════════════════╣");
+  console.log("║  Alerts Endpoints:                                        ║");
+  console.log("║    GET    /api/v1/alerts                                   ║");
+  console.log("║    POST   /api/v1/alerts                                   ║");
+  console.log("║    GET    /api/v1/alerts/:id                              ║");
+  console.log("║    PUT    /api/v1/alerts/:id                              ║");
+  console.log("║    DELETE /api/v1/alerts/:id                              ║");
+  console.log("║    PATCH  /api/v1/alerts/:id/status                       ║");
+  console.log("║    GET    /api/v1/alerts/history                          ║");
+  console.log("╠════════════════════════════════════════════════════════════╣");
+  console.log("║  Reports Endpoints:                                       ║");
+  console.log("║    GET    /api/v1/reports                                  ║");
+  console.log("║    POST   /api/v1/reports                                  ║");
+  console.log("║    GET    /api/v1/reports/:id                              ║");
+  console.log("║    DELETE /api/v1/reports/:id                              ║");
+  console.log("║    GET    /api/v1/reports/:id/download                    ║");
+  console.log("║    PATCH  /api/v1/reports/:id/schedule                     ║");
+  console.log("╠════════════════════════════════════════════════════════════╣");
+  console.log("║  User Endpoints:                                          ║");
+  console.log("║    GET    /api/v1/user/profile                            ║");
+  console.log("║    PUT    /api/v1/user/profile                            ║");
+  console.log("║    POST   /api/v1/user/change-password                    ║");
+  console.log("║    GET    /api/v1/user/api-keys                           ║");
+  console.log("║    POST   /api/v1/user/api-keys                            ║");
+  console.log("║    DELETE /api/v1/user/api-keys/:id                        ║");
+  console.log("║    GET    /api/v1/user/notifications                      ║");
+  console.log("║    PUT    /api/v1/user/notifications                      ║");
+  console.log("║    GET    /api/v1/user/tracked-apps                       ║");
   console.log("╚════════════════════════════════════════════════════════════╝");
 });
 

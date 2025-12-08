@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import { getStoredTokens } from './auth-api';
+import { formatApiError } from './api-utils';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
@@ -24,6 +25,38 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Handle response errors (401, 403, etc.)
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle 401 Unauthorized - redirect to login
+    if (error.response?.status === 401) {
+      // Clear tokens
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        // Redirect to login with return URL
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/login' && currentPath !== '/signup') {
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        }
+      }
+    }
+    
+    // Handle 403 Forbidden
+    if (error.response?.status === 403) {
+      console.error('Access forbidden:', error.response.data);
+    }
+    
+    // Handle network errors
+    if (!error.response) {
+      console.error('Network error:', error.message);
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // ============================================================================
 // DASHBOARD API
@@ -493,6 +526,28 @@ export async function searchApps(query: string, filters: SearchFilters = {}, pag
         pageSize: 20,
         totalPages: 0,
       };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Get user's tracked apps (for alerts/reports)
+ */
+export interface TrackedApp {
+  id: string;
+  name: string;
+  icon?: string;
+  store?: string;
+}
+
+export async function getTrackedApps(): Promise<TrackedApp[]> {
+  try {
+    const response = await apiClient.get<{ success: boolean; data: TrackedApp[] }>('/user/tracked-apps');
+    return response.data.data;
+  } catch (error: any) {
+    if (error.code === 'ECONNREFUSED' || error.response?.status === 404) {
+      return [];
     }
     throw error;
   }

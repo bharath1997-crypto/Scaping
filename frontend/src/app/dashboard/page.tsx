@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getDashboardData, DashboardData } from '@/lib/app-api';
+import { formatApiError } from '@/lib/api-utils';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function DashboardPage() {
         setDashboardData(data);
       } catch (err: any) {
         console.error('Failed to fetch dashboard data:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        setError(formatApiError(err));
       } finally {
         setLoading(false);
       }

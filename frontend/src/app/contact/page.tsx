@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { submitContactForm } from '@/lib/app-api';
+import { formatApiError } from '@/lib/api-utils';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -67,7 +68,7 @@ export default function ContactPage() {
         setErrors({ submit: result.message || 'Failed to send message. Please try again.' });
       }
     } catch (error: any) {
-      setErrors({ submit: error.message || 'Network error. Please try again.' });
+      setErrors({ submit: formatApiError(error) });
     } finally {
       setIsSubmitting(false);
     }
